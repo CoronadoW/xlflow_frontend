@@ -1,0 +1,357 @@
+<!-- src/app/features/orders/orders.component.html -->
+<div class="orders-container">
+  <h2>Gestión de Pedidos</h2>
+
+  <div class="tabs">
+    <!-- 🔥 CORREGIDO: Solo activo cuando NO está en modo resumen -->
+    <button class="tab-btn" [class.active]="!showSummary" (click)="showSummary = false; resetForm()">
+      <i class="fas fa-plus"></i> Nuevo Pedido
+    </button>
+
+    <!-- 🔥 CORREGIDO: Solo activo cuando ESTÁ en modo resumen -->
+    <button class="tab-btn" [class.active]="showSummary" (click)="showSummary = true">
+      <i class="fas fa-chart-bar"></i> Resumen por Fecha
+    </button>
+  </div>
+
+  <!-- ==================== FORMULARIO DE NUEVO PEDIDO ==================== -->
+  <div class="order-form-container" *ngIf="!showSummary">
+    <form [formGroup]="orderForm" (ngSubmit)="onSubmit()">
+      <!-- Datos del cliente -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre del Cliente</label>
+          <input type="text" formControlName="customerName" placeholder="Ingrese el nombre del cliente"
+            [class.error]="hasError(orderForm.get('customerName'))" />
+          <div *ngIf="hasError(orderForm.get('customerName'))" class="error-message">
+            El nombre del cliente es requerido
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Fecha de Entrega</label>
+          <input type="date" formControlName="deliveryDate" />
+        </div>
+      </div>
+
+      <!-- Productos -->
+      <div class="products-section">
+        <div class="products-header">
+          <h3>Productos</h3>
+          <button type="button" class="add-btn" (click)="addProduct()">
+            <i class="fas fa-plus"></i> Agregar Producto
+          </button>
+        </div>
+
+        <div class="product-list">
+          <div *ngFor="let control of productsFormArray.controls; let i = index" class="product-item">
+            <div [formGroup]="getProductGroup(i)" class="product-row">
+              <!-- Nombre del producto con sugerencias -->
+              <div class="product-search">
+                <input type="text" formControlName="productName" placeholder="Buscar producto..."
+                  (focus)="onFocusProduct(i)" (blur)="onBlurProduct(i)"
+                  [class.error]="hasError(getProductGroup(i).get('productName'))" />
+
+                <div class="suggestions" *ngIf="shouldShowSuggestions(i) && getSuggestions(i).length > 0">
+                  <div *ngFor="let p of getSuggestions(i)" class="suggestion-item"
+                    (mousedown)="selectProduct(p.name, i)">
+                    {{ p.name }} - {{ p.priceSale | roundPrice }}
+                  </div>
+                </div>
+                <div *ngIf="hasError(getProductGroup(i).get('productName'))" class="error-message">
+                  Producto requerido
+                </div>
+              </div>
+
+              <!-- Cantidad -->
+              <div class="quantity-field">
+                <input type="number" formControlName="quantity" min="1"
+                  [class.error]="hasError(getProductGroup(i).get('quantity'))" />
+                <div *ngIf="hasError(getProductGroup(i).get('quantity'))" class="error-message">
+                  Cantidad > 0
+                </div>
+              </div>
+
+              <!-- Precio -->
+              <div class="price-field">
+                <input type="text" formControlName="price" readonly />
+              </div>
+
+              <!-- Total -->
+              <div class="total-field">
+                <input type="text" formControlName="total" readonly />
+              </div>
+
+              <!-- Botón eliminar -->
+              <button type="button" class="remove-btn" (click)="removeProduct(i)" title="Eliminar producto">
+                <i class="fas fa-times-circle"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="empty-products" *ngIf="productsFormArray.length === 0">
+            <p>No hay productos agregados</p>
+            <p class="hint">Haz clic en "Agregar Producto" para comenzar</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="form-actions">
+        <button type="submit" class="submit-btn" [disabled]="loading || orderForm.invalid">
+          <span *ngIf="!loading">Crear Pedido</span>
+          <span *ngIf="loading"><i class="fas fa-spinner fa-spin"></i> Procesando...</span>
+        </button>
+        <button type="button" class="reset-btn" (click)="resetForm()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ==================== RESUMEN POR FECHA ==================== -->
+  <div class="summary-container" *ngIf="showSummary">
+    <!-- Selector de fecha -->
+    <div class="date-selector">
+      <input type="date" [(ngModel)]="selectedDate" />
+      <button class="load-btn" (click)="loadSummary()" [disabled]="loading">
+        <span *ngIf="!loading">Cargar Resumen</span>
+        <span *ngIf="loading"><i class="fas fa-spinner fa-spin"></i> Cargando...</span>
+      </button>
+
+      <!-- 🔥 NUEVO: Botón para exportar pedido al proveedor -->
+      <button class="export-supplier-btn" (click)="exportSupplierOrder()" [disabled]="loading || !selectedDate">
+        <i class="fas fa-file-excel"></i> Exportar Pedido Proveedor
+      </button>
+    </div>
+
+    <div *ngIf="selectedDate && !loading" class="summary-content">
+
+      <!-- Tarjetas de resumen -->
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="card-title">Total Ventas</div>
+          <!-- 🔥 Mostrar sin decimales -->
+          <div class="card-value">${{ getTotalAmount() | number:'1.0-0' }}</div>
+        </div>
+        <div class="summary-card">
+          <div class="card-title">Ganancia</div>
+          <!-- 🔥 Mostrar sin decimales -->
+          <div class="card-value profit" [class.negative]="profit < 0">
+            ${{ profit | number:'1.0-0' }}
+          </div>
+        </div>
+        <!-- 🔥 NUEVO: Pago al Proveedor -->
+        <div class="summary-card">
+          <div class="card-title">Pago al Proveedor</div>
+          <div class="card-value supplier-payment">
+            ${{ supplierPayment | number:'1.0-0' }}
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="card-title">Total Clientes</div>
+          <div class="card-value">{{ customerDetails.length }}</div>
+        </div>
+        <div class="summary-card">
+          <div class="card-title">Total Productos</div>
+          <div class="card-value">{{ getTotalProductsCount() | number:'1.0-0' }}</div>
+        </div>
+      </div>
+
+      <!-- Detalle por Cliente -->
+      <div class="summary-section">
+        <h3>Detalle por Cliente</h3>
+
+        <!-- Mostrar mensaje si no hay datos -->
+        <div *ngIf="customerDetails.length === 0" class="empty-state">
+          <i class="fas fa-users"></i>
+          <p>No hay pedidos para esta fecha</p>
+        </div>
+
+        <div class="customer-list" *ngIf="customerDetails.length > 0">
+          <div *ngFor="let customer of customerDetails; let last = last" class="customer-card" [class.last]="last">
+
+            <!-- Cabecera del cliente -->
+            <div class="customer-header" (click)="toggleCustomer(customer.customerName)">
+              <div class="customer-info">
+                <div class="customer-name">
+                  <i class="fas" [class.fa-chevron-down]="isCustomerExpanded(customer.customerName)"
+                    [class.fa-chevron-right]="!isCustomerExpanded(customer.customerName)"></i>
+                  <span class="customer-icon">
+                    <i class="fas fa-user-circle"></i>
+                  </span>
+                  {{ customer.customerName }}
+                </div>
+                <div class="customer-total">
+                  Total: <strong>${{ customer.total | number:'1.2-2' }}</strong>
+                </div>
+              </div>
+
+              <!-- 🔥 NUEVO: Botones de acción -->
+              <div class="customer-actions">
+                <button class="action-btn edit-btn" (click)="openEditModal(customer); $event.stopPropagation()"
+                  title="Editar pedido">
+                  <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button class="action-btn delete-btn"
+                  (click)="deleteCustomerRequest(customer); $event.stopPropagation()" title="Eliminar pedido">
+                  <i class="fas fa-trash"></i>
+                </button>
+                <div class="customer-badge">
+                  <i class="fas fa-box"></i> {{ customer.products.length }} productos
+                </div>
+              </div>
+            </div>
+
+            <!-- Detalle de productos -->
+            <div class="customer-products" *ngIf="isCustomerExpanded(customer.customerName)">
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Cantidad</th>
+                      <th>Precio Unit.</th>
+                      <th>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let product of customer.products; let idx = index" [class.alt-row]="idx % 2 === 0">
+                      <td>
+                        <span class="product-icon">
+                          <i class="fas fa-cube"></i>
+                        </span>
+                        {{ product.productName }}
+                      </td>
+                      <td>
+                        <span class="quantity-badge">{{ product.quantity | number:'1.0-0' }}</span>
+                      </td>
+                      <td>{{ product.unitPrice | roundPrice }}</td>
+                      <td class="subtotal">{{ product.subtotal | roundPrice }}</td>
+                    </tr>
+                    <tr class="total-row">
+                      <td colspan="3">
+                        <strong>Total del Cliente</strong>
+                      </td>
+                      <td class="subtotal">
+                        <strong>{{ customer.total | roundPrice }}</strong>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumen para Proveedor -->
+      <div class="summary-section">
+        <h3>Lista de Compra (Proveedor)</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Cantidad Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let product of getObjectKeys(supplierSummary)">
+                <td>{{ product }}</td>
+                <td>{{ supplierSummary[product] | number:'1.0-0' }}</td>
+              </tr>
+              <tr *ngIf="getObjectKeys(supplierSummary).length === 0">
+                <td colspan="2" class="empty-row">No hay productos para esta fecha</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- 🔥 NUEVO: Modal de edición de pedido -->
+  <div class="modal-overlay" *ngIf="showEditModal" (click)="closeEditModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>
+          <i class="fas fa-pencil-alt"></i>
+          Editar Pedido - {{ editingCustomer?.customerName }}
+        </h3>
+        <button class="close-btn" (click)="closeEditModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <form [formGroup]="editForm">
+          <!-- Nombre del cliente -->
+          <div class="form-group">
+            <label>Nombre del Cliente</label>
+            <input type="text" formControlName="customerName" [class.error]="hasError(editForm.get('customerName'))" />
+            <div *ngIf="hasError(editForm.get('customerName'))" class="error-message">
+              El nombre es requerido
+            </div>
+          </div>
+
+          <!-- Productos -->
+          <div class="products-section">
+            <div class="products-header">
+              <h4>Productos</h4>
+              <button type="button" class="add-btn" (click)="addEditProduct()">
+                <i class="fas fa-plus"></i> Agregar Producto
+              </button>
+            </div>
+
+            <div class="product-list">
+              <div *ngFor="let control of editProductsFormArray.controls; let i = index" class="product-item">
+                <div [formGroup]="getEditProductGroup(i)" class="product-row">
+                  <div class="product-search">
+                    <input type="text" formControlName="productName" placeholder="Buscar producto..."
+                      (focus)="onEditFocusProduct(i)" (blur)="onEditBlurProduct(i)" />
+
+                    <div class="suggestions" *ngIf="shouldShowEditSuggestions(i) && getEditSuggestions(i).length > 0">
+                      <div *ngFor="let p of getEditSuggestions(i)" class="suggestion-item"
+                        (mousedown)="selectEditProduct(p.name, i)">
+                        {{ p.name }} - ${{ p.priceSale | roundPrice }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="quantity-field">
+                    <input type="number" formControlName="quantity" min="1" />
+                  </div>
+
+                  <div class="price-field">
+                    <input type="text" formControlName="price" readonly />
+                  </div>
+
+                  <div class="total-field">
+                    <input type="text" formControlName="total" readonly />
+                  </div>
+
+                  <button type="button" class="remove-btn" (click)="removeEditProduct(i)">
+                    <i class="fas fa-times-circle"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="empty-products" *ngIf="editProductsFormArray.length === 0">
+                <p>No hay productos en el pedido</p>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button class="cancel-btn" (click)="closeEditModal()">Cancelar</button>
+        <button class="save-btn" (click)="saveEditRequest()" [disabled]="loading">
+          <span *ngIf="!loading"><i class="fas fa-save"></i> Guardar Cambios</span>
+          <span *ngIf="loading"><i class="fas fa-spinner fa-spin"></i> Guardando...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,25 @@
+
+
+.layout-container {
+  margin-left: 260px;
+
+  min-height: 100vh;
+
+  display: flex;
+  flex-direction: column;
+
+  background: #0f172a;
+}
+
+.content {
+  flex: 1;
+
+  padding: 24px;
+
+  background: rgb(162, 167, 180);
+
+  color: white;
+
+  box-sizing: border-box;
+}
+

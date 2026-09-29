@@ -1,0 +1,20 @@
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.card {
+  background: #383f4f;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 20px;
+  color: white;
+
+  transition: 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: #7596de;
+}

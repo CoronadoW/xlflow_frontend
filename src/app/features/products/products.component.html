@@ -1,0 +1,78 @@
+<!-- src/app/features/products/products.component.html -->
+<div class="products-container">
+  <h2>Gestión de Productos</h2>
+
+  <!-- 🔥 Mensajes de éxito/error -->
+  <div *ngIf="successMessage" class="success-message">
+    <i class="fas fa-check-circle"></i>
+    {{ successMessage }}
+  </div>
+
+  <div *ngIf="errorMessage" class="error-message">
+    <i class="fas fa-exclamation-circle"></i>
+    {{ errorMessage }}
+  </div>
+
+  <div class="actions-row">
+    <div class="import-section">
+      <h3>Importar Excel</h3>
+      <div class="import-controls">
+        <input type="file" (change)="onFileSelected($event)" accept=".xlsx,.xls" />
+        <div class="margin-control">
+          <label>Margen:</label>
+          <input type="number" [(ngModel)]="margin" step="0.01" min="0" max="1" />
+        </div>
+        <button class="import-btn" (click)="importExcel()" [disabled]="loading || !selectedFile">
+          <i class="fas fa-upload"></i> Importar
+        </button>
+      </div>
+    </div>
+
+    <div class="export-section">
+      <button class="export-btn" (click)="exportExcel()" [disabled]="loading">
+        <i class="fas fa-download"></i> Exportar Catalogo Excel
+      </button>
+    </div>
+  </div>
+
+  <div class="search-section">
+    <input type="text" 
+           [(ngModel)]="searchTerm" 
+           (input)="searchProducts()" 
+           placeholder="Buscar productos por nombre o categoría..." 
+           class="search-input" />
+  </div>
+
+  <div *ngIf="loading" class="loading-spinner">
+    <i class="fas fa-spinner fa-spin"></i> Cargando...
+  </div>
+
+  <div class="products-grid" *ngIf="!loading">
+    <div class="product-card" *ngFor="let product of filteredProducts">
+      <div class="product-header">
+        <h3>{{ product.name }}</h3>
+        <span class="category">{{ product.category || 'Sin categoría' }}</span>
+      </div>
+      <div class="product-details">
+        <div class="price-row">
+          <span class="label">Precio Compra:</span>
+          <span class="value">${{ product.pricePurchase | number:'1.2-2' }}</span>
+        </div>
+        <div class="price-row">
+          <span class="label">Precio Venta:</span>
+          <span class="value sale-price">{{ product.priceSale | roundPrice }}</span>
+        </div>
+        <div class="status-row">
+          <span class="status" [class.available]="product.available" [class.unavailable]="!product.available">
+            {{ product.available ? 'Disponible' : 'No disponible' }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="filteredProducts.length === 0 && !loading" class="empty-state">
+    <i class="fas fa-box-open"></i>
+    <p>No se encontraron productos</p>
+  </div>
+</div>

@@ -1,12 +1,15 @@
+// src/app/app.component.ts
 import { Component } from '@angular/core';
+import { RouterModule } from '@angular/router';
 import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss'
+  standalone: true,
+  imports: [RouterModule, RouterOutlet], // 🔥 Importante
+  template: `<router-outlet></router-outlet>`,
+  styleUrls: ['./app.component.scss']
 })
 export class AppComponent {
-  title = 'Esflowix_front';
+  title = 'esflowix-front';
 }
