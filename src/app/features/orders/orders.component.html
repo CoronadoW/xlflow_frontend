@@ -3,12 +3,12 @@
   <h2>Gestión de Pedidos</h2>
 
   <div class="tabs">
-    <!-- 🔥 CORREGIDO: Solo activo cuando NO está en modo resumen -->
+    <!--  Solo activo cuando NO está en modo resumen -->
     <button class="tab-btn" [class.active]="!showSummary" (click)="showSummary = false; resetForm()">
       <i class="fas fa-plus"></i> Nuevo Pedido
     </button>
 
-    <!-- 🔥 CORREGIDO: Solo activo cuando ESTÁ en modo resumen -->
+    <!--  Solo activo cuando ESTÁ en modo resumen -->
     <button class="tab-btn" [class.active]="showSummary" (click)="showSummary = true">
       <i class="fas fa-chart-bar"></i> Resumen por Fecha
     </button>
@@ -17,6 +17,7 @@
   <!-- ==================== FORMULARIO DE NUEVO PEDIDO ==================== -->
   <div class="order-form-container" *ngIf="!showSummary">
     <form [formGroup]="orderForm" (ngSubmit)="onSubmit()">
+
       <!-- Datos del cliente -->
       <div class="form-row">
         <div class="form-group">
@@ -25,6 +26,21 @@
             [class.error]="hasError(orderForm.get('customerName'))" />
           <div *ngIf="hasError(orderForm.get('customerName'))" class="error-message">
             El nombre del cliente es requerido
+          </div>
+        </div>
+
+        <!-- 🔥 NUEVO: Selector de lista de precios -->
+        <div class="form-group">
+          <label>Lista de Precios *</label>
+          <select formControlName="priceListId" (change)="onPriceListChange()"
+            [class.error]="hasError(orderForm.get('priceListId'))">
+            <option [ngValue]="null">Seleccionar lista...</option>
+            <option *ngFor="let list of priceLists" [ngValue]="list.id">
+              {{ list.name }} ({{ (list.margin * 100).toFixed(0) }}%)
+            </option>
+          </select>
+          <div *ngIf="hasError(orderForm.get('priceListId'))" class="error-message">
+            La lista de precios es requerida
           </div>
         </div>
 
@@ -111,7 +127,7 @@
   <div class="summary-container" *ngIf="showSummary">
     <!-- Selector de fecha -->
     <div class="date-selector">
-      <input type="date" [(ngModel)]="selectedDate" />
+      <input type="date" [(ngModel)]="selectedDate" (keyup.enter)="loadSummary()"/>
       <button class="load-btn" (click)="loadSummary()" [disabled]="loading">
         <span *ngIf="!loading">Cargar Resumen</span>
         <span *ngIf="loading"><i class="fas fa-spinner fa-spin"></i> Cargando...</span>
@@ -196,7 +212,7 @@
                   <i class="fas fa-trash"></i>
                 </button>
                 <div class="customer-badge">
-                  <i class="fas fa-box"></i> {{ customer.products.length }} productos
+                  <i class="fas fa-box"></i> {{ getCustomerTotalItems(customer) }} productos
                 </div>
               </div>
             </div>
@@ -294,6 +310,21 @@
               El nombre es requerido
             </div>
           </div>
+
+          <div class="form-group">
+            <label>Lista de Precios *</label>
+            <select formControlName="priceListId" (change)="onEditPriceListChange()"
+              [class.error]="hasError(editForm.get('priceListId'))">
+              <option [ngValue]="null">Seleccionar lista...</option>
+              <option *ngFor="let list of priceLists" [ngValue]="list.id">
+                {{ list.name }} ({{ (list.margin * 100).toFixed(0) }}%)
+              </option>
+            </select>
+            <div *ngIf="hasError(editForm.get('priceListId'))" class="error-message">
+              La lista de precios es requerida
+            </div>
+          </div>
+
 
           <!-- Productos -->
           <div class="products-section">

@@ -14,14 +14,33 @@
   </div>
 
   <div class="actions-row">
+
     <div class="import-section">
       <h3>Importar Excel</h3>
+
+      <!-- 🔥 NUEVO: Configuración de listas de precios -->
+      <div class="price-lists-config">
+        <label>Listas de precios a generar:</label>
+
+        <div *ngFor="let list of importPriceLists; let i = index" class="price-list-row">
+          <input type="text" [(ngModel)]="list.name" placeholder="Seudónimo (ej: Consumidor Final)"
+            class="list-name-input" />
+          <input type="number" [(ngModel)]="list.margin" step="0.01" min="0" max="1" placeholder="Margen (ej: 0.35)"
+            class="list-margin-input" />
+          <button type="button" class="remove-list-btn" (click)="removePriceList(i)"
+            [disabled]="importPriceLists.length <= 1" title="Eliminar lista">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <button type="button" class="add-list-btn" (click)="addPriceList()">
+          <i class="fas fa-plus"></i> Agregar otra lista
+        </button>
+      </div>
+
+      <!-- Archivo -->
       <div class="import-controls">
         <input type="file" (change)="onFileSelected($event)" accept=".xlsx,.xls" />
-        <div class="margin-control">
-          <label>Margen:</label>
-          <input type="number" [(ngModel)]="margin" step="0.01" min="0" max="1" />
-        </div>
         <button class="import-btn" (click)="importExcel()" [disabled]="loading || !selectedFile">
           <i class="fas fa-upload"></i> Importar
         </button>
@@ -35,12 +54,19 @@
     </div>
   </div>
 
+  <!-- 🔥 NUEVO: Selector de lista de precios -->
+  <div class="price-list-selector">
+    <label>Ver precios de:</label>
+    <select [(ngModel)]="selectedPriceListId" (change)="onPriceListChange()">
+      <option *ngFor="let list of priceLists" [ngValue]="list.id">
+        {{ list.name }} ({{ (list.margin * 100).toFixed(0) }}%)
+      </option>
+    </select>
+  </div>
+
   <div class="search-section">
-    <input type="text" 
-           [(ngModel)]="searchTerm" 
-           (input)="searchProducts()" 
-           placeholder="Buscar productos por nombre o categoría..." 
-           class="search-input" />
+    <input type="text" [(ngModel)]="searchTerm" (input)="searchProducts()"
+      placeholder="Buscar productos por nombre o categoría..." class="search-input" />
   </div>
 
   <div *ngIf="loading" class="loading-spinner">

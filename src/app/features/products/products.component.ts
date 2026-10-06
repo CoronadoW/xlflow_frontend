@@ -1,15 +1,18 @@
 // src/app/features/products/products.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProductService } from '../../services/product.service';
 import { Product } from '../../models/product.model';
 import { RoundPricePipe } from '../../shared/RoundPricePipe';
+import { ImportPriceListConfig } from '../../models/priceList.model';
+import { PriceListService } from '../../services/priceListService';
+import { PriceList } from '../../models/priceList.model';
 
 @Component({
   selector: 'app-products',
   standalone: true,
-  imports: [CommonModule, FormsModule,RoundPricePipe ],
+  imports: [CommonModule, FormsModule, RoundPricePipe],
   templateUrl: './products.component.html',
   styleUrls: ['./products.component.scss']
 })
@@ -23,16 +26,40 @@ export class ProductsComponent implements OnInit {
   errorMessage: string = '';
   successMessage: string = '';
 
-  constructor(private productService: ProductService) {}
+  // 🔥 NUEVO: Listas de precios
+  priceLists: PriceList[] = [];
+  selectedPriceListId: number | null = null;
+
+  constructor(
+    private productService: ProductService,
+    private priceListService: PriceListService,  // 🔥 NUEVO
+    private cdr: ChangeDetectorRef              // 🔥 NUEVO (si no lo tenés)
+  ) { }
 
   ngOnInit() {
-    this.loadProducts();
+    this.loadPriceLists();  // 🔥 NUEVO
   }
 
+  // 🔥 NUEVO: Cargar listas y auto-seleccionar
+  loadPriceLists() {
+    this.priceListService.getActive().subscribe({
+      next: (data) => {
+        this.priceLists = data;
+        if (data.length > 0 && !this.selectedPriceListId) {
+          this.selectedPriceListId = data[0].id;
+          this.loadProducts();
+        }
+      },
+      error: (error) => console.error('Error loading price lists:', error)
+    });
+  }
+
+  // 🔥 MODIFICAR: loadProducts ahora usa la lista elegida
   loadProducts() {
+    if (!this.selectedPriceListId) return;
+
     this.loading = true;
-    this.errorMessage = '';
-    this.productService.getAllProducts().subscribe({
+    this.productService.getProductsByPriceList(this.selectedPriceListId).subscribe({
       next: (data) => {
         this.products = data;
         this.filteredProducts = data;
@@ -40,10 +67,14 @@ export class ProductsComponent implements OnInit {
       },
       error: (error) => {
         console.error('Error loading products:', error);
-        this.errorMessage = 'Error al cargar productos: ' + error.message;
         this.loading = false;
       }
     });
+  }
+
+  // 🔥 NUEVO: Al cambiar de lista, recargar
+  onPriceListChange() {
+    this.loadProducts();
   }
 
   searchProducts() {
@@ -66,11 +97,23 @@ export class ProductsComponent implements OnInit {
     }
   }
 
-  // 🔥 CORREGIDO: Importar Excel con manejo de respuesta
+  // 🔥 MODIFICADO para el ingreso de multiples margenes
   importExcel() {
     if (!this.selectedFile) {
-      this.errorMessage = 'Por favor selecciona un archivo';
+      alert('Por favor selecciona un archivo');
       return;
+    }
+
+    // Validar que todas las listas tengan nombre y margen
+    for (const list of this.importPriceLists) {
+      if (!list.name || list.name.trim() === '') {
+        alert('Todas las listas deben tener un nombre');
+        return;
+      }
+      if (list.margin === null || list.margin === undefined || list.margin < 0 || list.margin > 1) {
+        alert('El margen debe estar entre 0 y 1 (ej: 0.35)');
+        return;
+      }
     }
 
     this.loading = true;
@@ -78,16 +121,15 @@ export class ProductsComponent implements OnInit {
     this.successMessage = '';
 
     console.log('📤 Importando archivo:', this.selectedFile.name);
-    console.log('📊 Margen:', this.margin);
+    console.log('📊 Listas:', this.importPriceLists);
 
-    this.productService.importExcel(this.selectedFile, this.margin).subscribe({
+    this.productService.importExcel(this.selectedFile, this.importPriceLists).subscribe({
       next: (response) => {
-        console.log('✅ Respuesta del servidor:', response);
+        console.log('✅ Respuesta:', response);
         this.successMessage = response.message || 'Productos importados correctamente';
         this.loadProducts();
         this.loading = false;
         this.selectedFile = null;
-        // Resetear el input file
         const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
       },
@@ -99,14 +141,35 @@ export class ProductsComponent implements OnInit {
     });
   }
 
-  exportExcel() {
-    this.loading = true;
-    this.errorMessage = '';
-    this.successMessage = '';
+  // 🔥 NUEVO: Agregar una lista
+  addPriceList() {
+    this.importPriceLists.push({ name: '', margin: 0.30 });
+  }
 
-    this.productService.exportExcel().subscribe({
+  // 🔥 NUEVO: Eliminar una lista
+  removePriceList(index: number) {
+    if (this.importPriceLists.length <= 1) {
+      alert('Debe haber al menos una lista');
+      return;
+    }
+    this.importPriceLists.splice(index, 1);
+  }
+
+  // 🔥 NUEVO: Listas de precios para configurar antes de importar
+  importPriceLists: ImportPriceListConfig[] = [
+    { name: 'Consumidor Final', margin: 0.35 }
+  ];
+
+  // 🔥 MODIFICAR: exportExcel ahora usa la lista elegida
+  exportExcel() {
+    if (!this.selectedPriceListId) {
+      alert('Por favor selecciona una lista de precios');
+      return;
+    }
+
+    this.loading = true;
+    this.productService.exportExcel(this.selectedPriceListId).subscribe({
       next: (blob) => {
-        console.log('✅ Exportación exitosa, tamaño:', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -116,12 +179,10 @@ export class ProductsComponent implements OnInit {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         this.loading = false;
-        this.successMessage = 'Exportación exitosa';
-        setTimeout(() => this.successMessage = '', 3000);
       },
       error: (error) => {
-        console.error('❌ Error exporting:', error);
-        this.errorMessage = 'Error al exportar: ' + error.message;
+        console.error('Error exporting:', error);
+        alert('Error al exportar el archivo');
         this.loading = false;
       }
     });

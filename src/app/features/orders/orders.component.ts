@@ -5,6 +5,8 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Va
 import { RequestService } from '../../services/request.service';
 import { SaleService } from '../../services/sale.service';
 import { ProductService } from '../../services/product.service';
+import { PriceListService } from '../../services/priceListService';
+import { PriceList } from '../../models/priceList.model';
 import { Product } from '../../models/product.model';
 import { CustomerDetail } from '../../models/sale.model';
 import { RequestResponse } from '../../models/request.model'; // 🔥 FALTA ESTA IMPORTACIÓN
@@ -62,28 +64,35 @@ export class OrdersComponent implements OnInit, OnDestroy {
   editShowSuggestions: { [key: number]: boolean } = {};
   editSubscriptions: Subscription[] = [];
 
+  //  NUEVO: Listas de precios
+  priceLists: PriceList[] = [];
+
   constructor(
     private fb: FormBuilder,
     private requestService: RequestService,
     private saleService: SaleService,
     private productService: ProductService,
+    private priceListService: PriceListService,
     private cdr: ChangeDetectorRef
   ) {
     this.orderForm = this.fb.group({
       customerName: ['', Validators.required],
+      priceListId: [null, Validators.required],
       products: this.fb.array([]),
       deliveryDate: ['', Validators.required]
     });
 
-    // 🔥 NUEVO: Formulario de edición
+    //  NUEVO: Formulario de edición
     this.editForm = this.fb.group({
       customerName: ['', Validators.required],
+      priceListId: [null, Validators.required],
       products: this.fb.array([])
     });
   }
 
   ngOnInit() {
     this.loadProducts();
+    this.loadPriceLists();
     this.setDefaultDate();
   }
 
@@ -116,6 +125,24 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
   }
 
+  //  NUEVO: Cargar listas de precios automaticamente con el listado seleccionado
+  loadPriceLists() {
+    this.priceListService.getActive().subscribe({
+      next: (data) => {
+        this.priceLists = data;
+        console.log('📋 Listas de precios cargadas:', this.priceLists);
+
+        // 🔥 Auto-seleccionar la primera lista (o la predeterminada)
+        if (this.priceLists.length > 0 && !this.orderForm.get('priceListId')?.value) {
+          const defaultList = this.priceLists[0]; // O podés elegir por nombre
+          this.orderForm.patchValue({ priceListId: defaultList.id });
+          this.onPriceListChange();
+        }
+      },
+      error: (error) => console.error('Error loading price lists:', error)
+    });
+  }
+
   setDefaultDate() {
     const today = new Date();
     const daysUntilFriday = (5 - today.getDay() + 7) % 7;
@@ -123,6 +150,66 @@ export class OrdersComponent implements OnInit, OnDestroy {
     nextFriday.setDate(today.getDate() + daysUntilFriday);
     this.deliveryDate = nextFriday.toISOString().split('T')[0];
     this.orderForm.patchValue({ deliveryDate: this.deliveryDate });
+  }
+
+  // 🔥 NUEVO: Al cambiar la lista, recargar productos con el precio de esa lista
+  onPriceListChange() {
+    const priceListId = this.orderForm.get('priceListId')?.value;
+
+    if (!priceListId) {
+      // Si no hay lista seleccionada, cargar todos sin filtro
+      this.loadProducts();
+      return;
+    }
+
+    console.log('🔄 Cambiando a lista:', priceListId);
+
+    // Recargar productos con el precio de la lista
+    this.productService.getProductsByPriceList(priceListId).subscribe({
+      next: (data) => {
+        this.products = data;
+        console.log(`📦 Productos recargados con precios de lista ${priceListId}:`, this.products.length);
+
+        // 🔥 Recalcular precios de productos ya cargados en el formulario
+        this.recalculateFormProductPrices();
+      },
+      error: (error) => {
+        console.error('❌ Error loading products by price list:', error);
+        alert('Error al cargar productos con la lista seleccionada');
+      }
+    });
+  }
+
+  // 🔥 NUEVO: Recalcular precios de productos en el formulario
+  private recalculateFormProductPrices() {
+    for (let i = 0; i < this.productsFormArray.length; i++) {
+      const productForm = this.getProductGroup(i);
+      const productName = productForm.get('productName')?.value;
+
+      if (productName) {
+        const product = this.products.find(p => p.name === productName);
+        if (product) {
+          const roundedPrice = this.roundPrice(product.priceSale);
+          productForm.patchValue({ price: roundedPrice });
+          this.calculateProductTotal(productForm);
+        }
+      }
+    }
+
+    // Lo mismo para el formulario de edición
+    for (let i = 0; i < this.editProductsFormArray.length; i++) {
+      const productForm = this.getEditProductGroup(i);
+      const productName = productForm.get('productName')?.value;
+
+      if (productName) {
+        const product = this.products.find(p => p.name === productName);
+        if (product) {
+          const roundedPrice = this.roundPrice(product.priceSale);
+          productForm.patchValue({ price: roundedPrice });
+          this.calculateEditProductTotal(productForm);
+        }
+      }
+    }
   }
 
   // ==================== GESTIÓN DE PRODUCTOS ====================
@@ -325,6 +412,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
       if (this.orderForm.get('customerName')?.invalid) {
         errors.push('Nombre del cliente es requerido');
       }
+      if (this.orderForm.get('priceListId')?.invalid) {
+        errors.push('Lista de precios es requerida');
+      }
       if (this.productsFormArray.length === 0) {
         errors.push('Debe agregar al menos un producto');
       }
@@ -346,6 +436,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     const requestDto = {
       customerName: formValue.customerName,
+      priceListId: formValue.priceListId,
+      deliveryDate: formValue.deliveryDate,
       requestProdDtoList: formValue.products.map((p: any) => ({
         productName: p.productName,
         quantity: p.quantity
@@ -354,42 +446,14 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     console.log('📤 Enviando pedido:', requestDto);
 
+    // 🔥 SOLO llamamos a createRequest.
+    // El backend se encarga de crear/reutilizar la Sale automáticamente.
     this.requestService.createRequest(requestDto).subscribe({
       next: (request) => {
         console.log('✅ Pedido creado:', request);
-        const saleDto = {
-          deliveryDate: formValue.deliveryDate || this.deliveryDate
-        };
-
-        this.saleService.createSale(saleDto).subscribe({
-          next: (sale) => {
-            console.log('✅ Venta creada:', sale);
-            this.requestService.assignRequestToSale(request.id!, sale.id!).subscribe({
-              next: (response) => {
-                console.log('✅ Respuesta del servidor:', response);
-                this.loading = false;
-                this.resetForm();
-                alert('✅ Pedido creado exitosamente!');
-              },
-              error: (error) => {
-                this.loading = false;
-                console.error('❌ Error en assignRequestToSale:', error);
-                if (error.status === 200 || error.status === 0) {
-                  console.log('✅ Pedido creado exitosamente (aunque hubo error de parsing)');
-                  this.resetForm();
-                  alert('✅ Pedido creado exitosamente!');
-                } else {
-                  alert('❌ Error al asignar el pedido: ' + (error.message || 'Error desconocido'));
-                }
-              }
-            });
-          },
-          error: (error) => {
-            this.loading = false;
-            console.error('❌ Error creating sale:', error);
-            alert('❌ Error al crear la venta: ' + (error.message || 'Error desconocido'));
-          }
-        });
+        this.loading = false;
+        this.resetForm();
+        alert('✅ Pedido creado exitosamente!');
       },
       error: (error) => {
         this.loading = false;
@@ -586,8 +650,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   // 🔥 NUEVO: Método para redondear precio
   roundPrice(price: number): number {
-    return Math.ceil(price / 100) * 100;
-  }
+  // 🔥 El backend ya redondea cuando debe. No tocar acá.
+  return price;
+}
 
   // 🔥 NUEVO: Método para formatear precio redondeado
   formatRoundedPrice(price: number): string {
@@ -673,16 +738,39 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
   }
 
-  // 🔥 NUEVO: Cargar pedido en el formulario de edición
   loadRequestIntoEditForm(request: RequestResponse) {
     this.editForm.patchValue({
-      customerName: request.customerName
+      customerName: request.customerName,
+      priceListId: request.priceList?.id || null
     });
 
     // Limpiar productos
     this.editProductsFormArray.clear();
 
-    // Agregar cada producto
+    // 🔥 Recargar productos con la lista del pedido que se está editando
+    const priceListId = request.priceList?.id;
+    if (priceListId) {
+      this.productService.getProductsByPriceList(priceListId).subscribe({
+        next: (data) => {
+          this.products = data;
+          console.log(`📦 [Edición] Productos cargados con lista ${priceListId}`);
+          // Después de cargar, agregar los productos al formulario
+          this.addEditProductsFromRequest(request);
+        },
+        error: (error) => {
+          console.error('❌ Error loading products:', error);
+          // Fallback: cargar sin recargar productos
+          this.addEditProductsFromRequest(request);
+        }
+      });
+    } else {
+      // Si el request no tiene lista (pedidos viejos), usar los productos actuales
+      this.addEditProductsFromRequest(request);
+    }
+  }
+
+  // 🔥 NUEVO: Extraer la lógica de agregar productos al formulario
+  private addEditProductsFromRequest(request: RequestResponse) {
     request.reqProdsList.forEach((rp, index) => {
       const productForm = this.fb.group({
         productName: [rp.productName, Validators.required],
@@ -694,7 +782,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
       this.editFilteredProductsMap[index] = [];
       this.editShowSuggestions[index] = false;
 
-      // Suscribirse a cambios
       const nameSub = productForm.get('productName')?.valueChanges.subscribe(name => {
         if (name && name.length > 0) {
           this.filterEditProducts(index, name);
@@ -717,7 +804,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
       this.editProductsFormArray.push(productForm);
     });
 
-    // Guardar el ID del request para actualizar
     (this.editForm as any).requestId = request.id;
     this.cdr.detectChanges();
   }
@@ -911,12 +997,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return this.editFilteredProductsMap[index] || [];
   }
 
-  // 🔥 NUEVO: Mostrar sugerencias de edición
+  //  NUEVO: Mostrar sugerencias de edición
   shouldShowEditSuggestions(index: number): boolean {
     return this.editShowSuggestions[index] || false;
   }
 
-  // 🔥 NUEVO: Guardar cambios del pedido
+  //  NUEVO: Guardar cambios del pedido
   saveEditRequest() {
     if (this.editForm.invalid) {
       this.editForm.markAllAsTouched();
@@ -936,6 +1022,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     const requestDto = {
       customerName: formValue.customerName,
+      priceListId: formValue.priceListId,
+      deliveryDate: this.selectedDate,
       requestProdDtoList: formValue.products.map((p: any) => ({
         productName: p.productName,
         quantity: p.quantity
@@ -1009,6 +1097,60 @@ export class OrdersComponent implements OnInit, OnDestroy {
         alert('❌ Error al buscar el pedido');
       }
     });
+  }
+
+  //----------Para recargar precios de la nueva lista recargada-------
+  // 🔥 NUEVO: Al cambiar la lista en el modal de edición, recargar productos
+  onEditPriceListChange() {
+    const priceListId = this.editForm.get('priceListId')?.value;
+
+    if (!priceListId) return;
+
+    console.log('🔄 [Edición] Cambiando a lista:', priceListId);
+
+    // Recargar productos con el precio de la lista
+    this.productService.getProductsByPriceList(priceListId).subscribe({
+      next: (data) => {
+        this.products = data;
+        console.log(`📦 [Edición] Productos recargados con precios de lista ${priceListId}:`, this.products.length);
+
+        // 🔥 Recalcular precios SOLO del formulario de edición
+        this.recalculateEditFormProductPrices();
+      },
+      error: (error) => {
+        console.error('❌ Error loading products by price list:', error);
+        alert('Error al cargar productos con la lista seleccionada');
+      }
+    });
+  }
+
+  // 🔥 NUEVO: Recalcular precios solo del formulario de edición
+  private recalculateEditFormProductPrices() {
+    for (let i = 0; i < this.editProductsFormArray.length; i++) {
+      const productForm = this.getEditProductGroup(i);
+      const productName = productForm.get('productName')?.value;
+
+      if (productName) {
+        const product = this.products.find(p => p.name === productName);
+        if (product) {
+          const roundedPrice = this.roundPrice(product.priceSale);
+          productForm.patchValue({ price: roundedPrice });
+          this.calculateEditProductTotal(productForm);
+        }
+      }
+    }
+    this.cdr.detectChanges();
+  }
+
+  // 🔥 NUEVO: Calcular el total de items de un cliente (sumando cantidades)
+  getCustomerTotalItems(customer: CustomerDetail): number {
+    let total = 0;
+    if (customer.products) {
+      customer.products.forEach(p => {
+        total += p.quantity || 0;
+      });
+    }
+    return total;
   }
 
 }

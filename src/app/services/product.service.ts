@@ -4,6 +4,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { Product } from '../models/product.model';
+import { ImportPriceListConfig } from '../models/priceList.model';
 
 @Injectable({
   providedIn: 'root'
@@ -11,7 +12,7 @@ import { Product } from '../models/product.model';
 export class ProductService {
   private apiUrl = 'http://localhost:8080/api/products';
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   getAvailableProducts(): Observable<Product[]> {
     return this.http.get<Product[]>(`${this.apiUrl}/available`)
@@ -33,32 +34,28 @@ export class ProductService {
       .pipe(catchError(this.handleError));
   }
 
-  // 🔥 CORREGIDO: Manejar respuesta JSON
-  importExcel(file: File, margin: number = 0.3): Observable<{ message: string; status: string }> {
+  importExcel(file: File, priceLists: ImportPriceListConfig[]): Observable<{ message: string; status: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('margin', margin.toString());
-    
-    return this.http.post<{ message: string; status: string }>(`${this.apiUrl}/import`, formData)
-      .pipe(
-        map(response => {
-          console.log('✅ Importación exitosa:', response);
-          return response;
-        }),
-        catchError(this.handleError)
-      );
+    formData.append('priceLists', JSON.stringify(priceLists));
+
+    return this.http.post<{ message: string; status: string }>(
+      `${this.apiUrl}/import`,
+      formData
+    );
   }
 
-  exportExcel(): Observable<Blob> {
-    return this.http.get(`${this.apiUrl}/export/excel`, {
+  // 🔥 MODIFICAR: exportExcel recibe priceListId
+  exportExcel(priceListId: number): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/export/excel/${priceListId}`, {
       responseType: 'blob'
-    }).pipe(catchError(this.handleError));
+    });
   }
 
   // 🔥 Manejo de errores mejorado
   private handleError(error: HttpErrorResponse) {
     let errorMessage = 'Ha ocurrido un error';
-    
+
     if (error.error instanceof ErrorEvent) {
       // Error del lado del cliente
       errorMessage = `Error: ${error.error.message}`;
@@ -74,8 +71,13 @@ export class ProductService {
         errorMessage = `Código: ${error.status}, Mensaje: ${error.message}`;
       }
     }
-    
+
     console.error('❌ Error en ProductService:', errorMessage);
     return throwError(() => new Error(errorMessage));
+  }
+
+  //  NUEVO: Obtener productos con el precio de una lista específica
+  getProductsByPriceList(priceListId: number): Observable<Product[]> {
+    return this.http.get<Product[]>(`${this.apiUrl}/by-price-list/${priceListId}`);
   }
 }

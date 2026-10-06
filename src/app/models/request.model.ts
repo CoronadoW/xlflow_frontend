@@ -1,3 +1,5 @@
+import { PriceList } from "./priceList.model";
+
 // src/app/models/request.model.ts
 export interface RequestProductDetail {
   productName: string;
@@ -11,10 +13,13 @@ export interface RequestResponse {
   customerName: string;
   totalBySale: number;
   reqProdsList: RequestProductDetail[];
+  priceList?: PriceList;
 }
 
 export interface RequestDto {
   customerName: string;
+  priceListId: number;
+  deliveryDate: string;
   requestProdDtoList: RequestProduct[];
 }
 

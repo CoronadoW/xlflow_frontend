@@ -8,13 +8,15 @@ import { Pipe, PipeTransform } from '@angular/core';
   standalone: true
 })
 export class RoundPricePipe implements PipeTransform {
-  
   transform(value: number | null | undefined): string {
-    if (value == null) return '$0.00';
-    
-    // Redondear al múltiplo de 100 superior
-    const rounded = Math.ceil(value / 100) * 100;
-    return `$${rounded.toFixed(2)}`;
+    if (value === null || value === undefined) return '$0';
+
+    // 🔥 Solo formatear, NO redondear
+    // El backend ya devuelve el precio correcto (redondeado o no)
+    return `$${value.toLocaleString('es-AR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    })}`;
   }
 }
 
@@ -25,7 +27,7 @@ export class RoundPricePipe implements PipeTransform {
   standalone: true
 })
 export class RoundPriceRawPipe implements PipeTransform {
-  
+
   transform(value: number | null | undefined): number {
     if (value == null) return 0;
     return Math.ceil(value / 100) * 100;
