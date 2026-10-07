@@ -10,8 +10,9 @@ import { ImportPriceListConfig } from '../models/priceList.model';
   providedIn: 'root'
 })
 export class ProductService {
-  private apiUrl = 'http://localhost:8080/api/products';
-
+  //private apiUrl = 'http://localhost:8080/api/products';
+  private apiUrl = '/api/products';
+  
   constructor(private http: HttpClient) { }
 
   getAvailableProducts(): Observable<Product[]> {

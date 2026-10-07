@@ -8,8 +8,8 @@ import { Sale, SaleDto, DeliverySummary } from '../models/sale.model';
   providedIn: 'root'
 })
 export class SaleService {
-  private apiUrl = 'http://localhost:8080/api/sales';
-
+  //private apiUrl = 'http://localhost:8080/api/sales';
+  private apiUrl = '/api/sales';
   constructor(private http: HttpClient) {}
 
   createSale(sale: SaleDto): Observable<Sale> {

@@ -7,7 +7,8 @@ import { PriceList } from '../models/priceList.model';
   providedIn: 'root'
 })
 export class PriceListService {
-  private apiUrl = 'http://localhost:8080/api/priceList';
+  //private apiUrl = 'http://localhost:8080/api/priceList';
+  private apiUrl= '/api/priceList';
 
   constructor(private http: HttpClient) {}
 

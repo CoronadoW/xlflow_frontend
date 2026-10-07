@@ -9,7 +9,8 @@ import { CustomerDetail } from '../models/sale.model';
   providedIn: 'root'
 })
 export class RequestService {
-  private apiUrl = 'http://localhost:8080/api/requests';
+  //private apiUrl = 'http://localhost:8080/api/requests';
+  private apiUrl = '/api/requests';
 
   constructor(private http: HttpClient) { }
 
