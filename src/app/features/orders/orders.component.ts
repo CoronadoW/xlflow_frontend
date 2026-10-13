@@ -515,79 +515,53 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   private loadCustomerDetailsData(): Promise<void> {
-    return new Promise((resolve) => {
-      // 🔥 Usar el endpoint existente en lugar del que no existe
-      this.requestService.getRequestsByDeliveryDate(this.selectedDate).subscribe({
-        next: (requests) => {
-          console.log('📦 Pedidos encontrados para la fecha:', requests);
+  return new Promise((resolve) => {
+    this.requestService.getCustomerDetails(this.selectedDate).subscribe({
+      next: (customers) => {
+        console.log('📦 Detalle de clientes recibido:', customers);
 
-          if (!requests || requests.length === 0) {
-            this.customerDetails = [];
-            this.customerSummary = {};
-            resolve();
-            return;
-          }
-
-          // Procesar los datos localmente para agrupar por cliente
-          const customerMap = new Map<string, { total: number, products: any[] }>();
-
-          requests.forEach(request => {
-            const customerName = request.customerName || 'Cliente sin nombre';
-
-            // Obtener los productos del pedido
-            const products = (request.reqProdsList || []).map(rp => ({
-              productName: rp.productName || 'Producto sin nombre',
-              quantity: rp.quantity || 0,
-              unitPrice: rp.productPrice || 0,
-              subtotal: rp.totalByReqProd || 0
-            }));
-
-            if (customerMap.has(customerName)) {
-              const existing = customerMap.get(customerName)!;
-              existing.total += (request.totalBySale || 0);
-              existing.products.push(...products);
-            } else {
-              customerMap.set(customerName, {
-                total: request.totalBySale || 0,
-                products: products
-              });
-            }
-          });
-
-          // Convertir a array de CustomerDetail
-          this.customerDetails = Array.from(customerMap.entries()).map(([name, data]) => ({
-            customerName: name,
-            total: data.total,
-            products: data.products
-          }));
-
-          // Ordenar por nombre de cliente
-          this.customerDetails.sort((a, b) => a.customerName.localeCompare(b.customerName));
-
-          // Inicializar todos como expandidos
-          this.customerDetails.forEach(c => {
-            this.expandedCustomers[c.customerName] = true;
-          });
-
-          // Actualizar resumen simple
-          const summary: { [key: string]: number } = {};
-          this.customerDetails.forEach(c => {
-            summary[c.customerName] = c.total;
-          });
-          this.customerSummary = summary;
-
-          console.log('✅ Detalle de clientes procesado:', this.customerDetails);
-          resolve();
-        },
-        error: (error) => {
-          console.error('❌ Error loading customer details:', error);
+        if (!customers || customers.length === 0) {
           this.customerDetails = [];
           this.customerSummary = {};
           resolve();
+          return;
         }
-      });
+
+        // 🔥 El backend ya devuelve todo listo
+        this.customerDetails = customers.map(c => ({
+          customerName: c.customerName,
+          total: c.total,
+          priceListName: c.priceListName,
+          products: c.products
+        }));
+
+        // Ordenar por nombre de cliente
+        this.customerDetails.sort((a, b) => a.customerName.localeCompare(b.customerName));
+
+        // Inicializar todos como expandidos
+        this.customerDetails.forEach(c => {
+          this.expandedCustomers[c.customerName] = true;
+        });
+
+        // Actualizar resumen simple
+        const summary: { [key: string]: number } = {};
+        this.customerDetails.forEach(c => {
+          summary[c.customerName] = c.total;
+        });
+        this.customerSummary = summary;
+
+        console.log('✅ Detalle de clientes procesado:', this.customerDetails);
+        resolve();
+      },
+      error: (error) => {
+        console.error('❌ Error loading customer details:', error);
+        this.customerDetails = [];
+        this.customerSummary = {};
+        resolve();
+      }
     });
-  }
+  });
+}
 
   private loadProfitData(): Promise<void> {
     return new Promise((resolve) => {

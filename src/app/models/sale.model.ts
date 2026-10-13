@@ -25,6 +25,7 @@ export interface DeliverySummary {
 export interface CustomerDetail {
   customerName: string;
   total: number;
+  priceListName?: string;
   products: ProductDetail[];
 }
 

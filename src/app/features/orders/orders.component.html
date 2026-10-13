@@ -127,7 +127,7 @@
   <div class="summary-container" *ngIf="showSummary">
     <!-- Selector de fecha -->
     <div class="date-selector">
-      <input type="date" [(ngModel)]="selectedDate" (keyup.enter)="loadSummary()"/>
+      <input type="date" [(ngModel)]="selectedDate" (keyup.enter)="loadSummary()" />
       <button class="load-btn" (click)="loadSummary()" [disabled]="loading">
         <span *ngIf="!loading">Cargar Resumen</span>
         <span *ngIf="loading"><i class="fas fa-spinner fa-spin"></i> Cargando...</span>
@@ -203,6 +203,11 @@
 
               <!-- 🔥 NUEVO: Botones de acción -->
               <div class="customer-actions">
+                <!-- 🔥 NUEVO: Badge con el nombre de la lista -->
+                <div class="customer-price-list" *ngIf="customer.priceListName">
+                  <i class="fas fa-tag"></i>
+                  {{ customer.priceListName }}
+                </div>
                 <button class="action-btn edit-btn" (click)="openEditModal(customer); $event.stopPropagation()"
                   title="Editar pedido">
                   <i class="fas fa-pencil-alt"></i>

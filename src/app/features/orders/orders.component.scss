@@ -99,7 +99,7 @@
   }
 
   @media (max-width: 768px) {
-    grid-template-columns: 1fr;  // 1 columna en móviles
+    grid-template-columns: 1fr; // 1 columna en móviles
   }
 }
 
@@ -564,6 +564,26 @@
           color: #38bdf8;
           font-size: 22px;
           opacity: 0.8;
+        }
+      }
+
+      // 🔥 NUEVO: Badge de lista de precios
+      .customer-price-list {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        background: #1e3a5f;
+        color: #60a5fa;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid #2563eb;
+        white-space: nowrap;
+        flex-shrink: 0;
+
+        i {
+          font-size: 11px;
         }
       }
 
